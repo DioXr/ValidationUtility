@@ -1,8 +1,52 @@
 ﻿@{
-    ViewData["Title"] = "Home Page";
+    ViewData["Title"] = "Validation UI";
 }
 
-<div class="text-center">
-    <h1 class="display-4">Welcome</h1>
-    <p>Learn about <a href="https://learn.microsoft.com/aspnet/core">building Web apps with ASP.NET Core</a>.</p>
+<div class="container mt-4">
+    <h3 class="mb-4 text-primary">Content Validator</h3>
+
+    <div class="row">
+        <div class="col-lg-5 col-md-6 mb-4">
+
+            <div class="card shadow-sm border-0 bg-light p-3 mb-3">
+                <h6 class="fw-bold mb-3 border-bottom pb-2">Validation Settings</h6>
+
+                <div class="mb-3">
+                    <label class="form-label text-muted small fw-bold mb-1">AI Model</label>
+                    <select id="selectedModel" class="form-select form-select-sm">
+                        <option value="gemini-flash-latest" selected>Gemini 1.5 Flash (Stable & Fast)</option>
+                        <option value="gemini-1.5-flash-8b">Gemini 1.5 Pro (For Complex math Problems)</option>
+                        <option value="gemini-2.5-flash">Gemini 2.5 Flash (Latest & Most Accurate)</option>
+                    </select>
+                </div>
+
+                <div>
+                    <label class="form-label text-muted small fw-bold mb-1">Reference Material (Upload or Paste)</label>
+                    <input type="file" id="fileInput" class="form-control form-control-sm mb-2" accept=".txt, .pdf">
+                    <textarea id="referenceText" class="form-control form-control-sm" rows="3" placeholder="Extracted textbook text will appear here..."></textarea>
+                </div>
+            </div>
+
+            <label class="form-label fw-bold">Paste Questions (JSON):</label>
+            <textarea id="jsonInput" class="form-control font-monospace text-sm" rows="12" placeholder='[{ "questionTitle": "...", "answer": "C" }]'></textarea>
+
+            <button id="btnRun" class="btn btn-primary w-100 mt-3 shadow-sm">Validate Content</button>
+        </div>
+
+        <div class="col-lg-7 col-md-6">
+            <label class="form-label fw-bold">Validation Results:</label>
+
+            <div id="loader" class="d-none text-primary mb-3 p-3 bg-light rounded border">
+                <span class="spinner-border spinner-border-sm me-2"></span> Analyzing questions, please wait...
+            </div>
+
+            <div id="results" class="border rounded p-3 bg-light shadow-sm" style="min-height: 560px; overflow-y: auto;">
+                <span class="text-muted">No data processed yet. Adjust your settings, paste your JSON, and click validate.</span>
+            </div>
+        </div>
+    </div>
 </div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
+
+<script src="~/js/validator.js"></script>

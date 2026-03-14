@@ -6,9 +6,10 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddControllersWithViews();
 // Tells the app to generate the API documentation
 builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen();
 // This sets up the HttpClient and connects our interface to our implementation
 builder.Services.AddHttpClient<IGeminiValidationService, GeminiValidationService>();
+builder.Services.AddHttpClient();
+builder.Services.AddScoped<QAUtility.Services.IGeminiValidationService, QAUtility.Services.GeminiValidationService>();
 
 var app = builder.Build();
 
