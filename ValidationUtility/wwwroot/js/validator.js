@@ -1,120 +1,303 @@
-﻿// --- PDF EXTRACTION LOGIC ---
-// Tell PDF.js where to find its worker file
-pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
+﻿// --- 0. HELPER FUNCTION: Prevent HTML Injection ---
+function escapeHTML(str) {
+    if (!str) return "";
+    return str.toString().replace(/[&<>'"]/g, 
+        tag => ({
+            '&': '&amp;',
+            '<': '&lt;',
+            '>': '&gt;',
+            "'": '&#39;',
+            '"': '&quot;'
+        }[tag] || tag)
+    );
+}
 
-// Listen for when a teacher uploads a file
+// --- 1. PDF TEXT EXTRACTION LOGIC ---
 document.getElementById('fileInput').addEventListener('change', async function(e) {
     const file = e.target.files[0];
     if (!file) return;
 
-    const refTextArea = document.getElementById('referenceText');
-    refTextArea.value = "Extracting text from file, please wait...";
+    const textArea = document.getElementById('referenceText');
+    textArea.value = "Extracting text, please wait...";
 
     try {
-        // 1. If it's a simple text file
-        if (file.type === "text/plain") {
-            const text = await file.text();
-            refTextArea.value = text;
-        } 
-        // 2. If it's a PDF document
-        else if (file.type === "application/pdf") {
-            const arrayBuffer = await file.arrayBuffer();
-            const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-            let fullText = "";
-            
-            // Loop through every page in the PDF and grab the words
-            for (let i = 1; i <= pdf.numPages; i++) {
-                const page = await pdf.getPage(i);
-                const textContent = await page.getTextContent();
-                const pageText = textContent.items.map(item => item.str).join(" ");
-                fullText += pageText + "\n";
-            }
-            refTextArea.value = fullText.trim();
-        } 
-        else {
-            refTextArea.value = "Unsupported file. Please upload a .txt or .pdf file.";
+        const arrayBuffer = await file.arrayBuffer();
+        const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+        let fullText = "";
+
+        for (let i = 1; i <= pdf.numPages; i++) {
+            const page = await pdf.getPage(i);
+            const content = await page.getTextContent();
+            const strings = content.items.map(item => item.str);
+            fullText += strings.join(" ") + " ";
         }
-    } catch (err) {
-        refTextArea.value = "Error extracting text: " + err.message;
+
+        textArea.value = fullText;
+    } catch (error) {
+        textArea.value = "Error extracting PDF: " + error.message;
     }
 });
 
-// --- VALIDATION LOGIC ---
+// --- 2. LOAD MANUAL JSON LOGIC ---
+document.getElementById('btnLoadJson').addEventListener('click', function() {
+    const jsonText = document.getElementById('manualJsonInput').value;
+    const container = document.getElementById('questionsContainer');
+
+    try {
+        const questions = JSON.parse(jsonText);
+        
+        if (container.innerHTML.includes('No questions loaded')) {
+            container.innerHTML = '';
+        }
+
+        questions.forEach((q, index) => {
+            const randomId = "Manual_" + Math.floor(Math.random() * 10000); 
+            
+            const cardHtml = `
+                <div class="card mb-4 shadow-sm question-card border-0" data-id="${randomId}">
+                    <div class="card-header bg-white border-bottom-0 pt-3 pb-0 d-flex justify-content-between align-items-center">
+                        <div class="form-check">
+                            <input class="form-check-input q-check row-checkbox" type="checkbox" checked>
+                            <label class="form-check-label fw-bold text-primary">Include in Validation</label>
+                        </div>
+                        <span class="badge bg-secondary">ID: ${randomId}</span>
+                    </div>
+
+                    <div class="card-body">
+                        <label class="form-label small fw-bold text-muted mb-1">Question Text</label>
+                        <textarea class="form-control mb-3 q-title bg-light" rows="2">${escapeHTML(q.questionTitle || '')}</textarea>
+                        
+                        <div class="row g-2 mb-3">
+                            <div class="col-md-6">
+                                <div class="input-group input-group-sm">
+                                    <span class="input-group-text fw-bold">A</span>
+                                    <input type="text" class="form-control q-optA" value="${escapeHTML(q.optionA || '')}">
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="input-group input-group-sm">
+                                    <span class="input-group-text fw-bold">B</span>
+                                    <input type="text" class="form-control q-optB" value="${escapeHTML(q.optionB || '')}">
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="input-group input-group-sm">
+                                    <span class="input-group-text fw-bold">C</span>
+                                    <input type="text" class="form-control q-optC" value="${escapeHTML(q.optionC || '')}">
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="input-group input-group-sm">
+                                    <span class="input-group-text fw-bold">D</span>
+                                    <input type="text" class="form-control q-optD" value="${escapeHTML(q.optionD || '')}">
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="d-flex align-items-center">
+                            <label class="form-label small fw-bold text-muted mb-0 me-2">Teacher Answer Key:</label>
+                            <input type="text" class="form-control form-control-sm text-center fw-bold q-ans w-25" value="${escapeHTML(q.answer || '')}" maxlength="1">
+                        </div>
+                    </div>
+                    
+                    <div class="card-footer d-none validation-box p-3"></div>
+                </div>`;
+            
+            container.innerHTML += cardHtml;
+        });
+
+        document.getElementById('manualJsonInput').value = '';
+
+    } catch (e) {
+        alert("Invalid JSON format. Please check your syntax. Error: " + e.message);
+    }
+});
+
+// --- 3. FETCH EXTERNAL QUESTIONS LOGIC ---
+document.getElementById('btnFetch').addEventListener('click', async function() {
+    const container = document.getElementById('questionsContainer');
+    const btn = this;
+    const btnRun = document.getElementById('btnRun');
+    const selectAll = document.getElementById('selectAll');
+    
+    btn.innerHTML = 'Loading...';
+    btn.disabled = true;
+
+    try {
+        const response = await fetch('/api/validation/fetch-external');
+        if (!response.ok) throw new Error("Failed to fetch questions");
+        
+        const questions = await response.json();
+        
+        if (container.innerHTML.includes('No questions loaded')) {
+            container.innerHTML = '';
+        }
+
+        questions.forEach((q, index) => {
+            const cardHtml = `
+                <div class="card mb-4 shadow-sm question-card border-0" data-id="${escapeHTML(q.id)}">
+                    
+                    <div class="card-header bg-white border-bottom-0 pt-3 pb-0 d-flex justify-content-between align-items-center">
+                        <div class="form-check">
+                            <input class="form-check-input q-check row-checkbox" type="checkbox" checked>
+                            <label class="form-check-label fw-bold text-primary">Include in Validation</label>
+                        </div>
+                        <span class="badge bg-secondary">ID: ${escapeHTML(q.id)}</span>
+                    </div>
+
+                    <div class="card-body">
+                        <label class="form-label small fw-bold text-muted mb-1">Question Text</label>
+                        <textarea class="form-control mb-3 q-title bg-light" rows="2">${escapeHTML(q.questionTitle)}</textarea>
+                        
+                        <div class="row g-2 mb-3">
+                            <div class="col-md-6">
+                                <div class="input-group input-group-sm">
+                                    <span class="input-group-text fw-bold">A</span>
+                                    <input type="text" class="form-control q-optA" value="${escapeHTML(q.optionA)}">
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="input-group input-group-sm">
+                                    <span class="input-group-text fw-bold">B</span>
+                                    <input type="text" class="form-control q-optB" value="${escapeHTML(q.optionB)}">
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="input-group input-group-sm">
+                                    <span class="input-group-text fw-bold">C</span>
+                                    <input type="text" class="form-control q-optC" value="${escapeHTML(q.optionC)}">
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="input-group input-group-sm">
+                                    <span class="input-group-text fw-bold">D</span>
+                                    <input type="text" class="form-control q-optD" value="${escapeHTML(q.optionD)}">
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="d-flex align-items-center">
+                            <label class="form-label small fw-bold text-muted mb-0 me-2">Teacher Answer Key:</label>
+                            <input type="text" class="form-control form-control-sm text-center fw-bold q-ans w-25" value="${escapeHTML(q.answer)}" maxlength="1">
+                        </div>
+                    </div>
+                    
+                    <div class="card-footer d-none validation-box p-3"></div>
+                </div>`;
+            
+            container.innerHTML += cardHtml;
+        });
+
+        btnRun.disabled = false;
+        selectAll.disabled = false;
+        selectAll.checked = true;
+
+    } catch (err) {
+        alert("Error: " + err.message);
+    } finally {
+        btn.innerHTML = 'Fetch External App';
+        btn.disabled = false;
+    }
+});
+
+// --- 4. SELECT ALL CHECKBOX LOGIC ---
+document.getElementById('selectAll').addEventListener('change', function() {
+    const isChecked = this.checked;
+    document.querySelectorAll('.row-checkbox').forEach(cb => cb.checked = isChecked);
+});
+
+// --- 5. VALIDATION LOGIC ---
 document.getElementById('btnRun').addEventListener('click', async function() {
     const btn = this;
-    let rawInput = document.getElementById('jsonInput').value.trim();
-    const selectedModel = document.getElementById('selectedModel').value;
-    const referenceText = document.getElementById('referenceText').value.trim();
-    
-    const resultsDiv = document.getElementById('results');
     const loader = document.getElementById('loader');
+    
+    // Clear old validation results
+    document.querySelectorAll('.validation-box').forEach(box => {
+        box.classList.add('d-none');
+        box.innerHTML = '';
+        // 1. Remove the old border colors from the main card
+        box.closest('.card').classList.remove('border-success', 'border-danger');
+        
+        // 2. NEW FIX: Remove the old background colors from the footer box!
+        box.classList.remove('bg-success', 'bg-danger', 'bg-opacity-10');
+    });
 
-    if (!rawInput) {
-        alert("Please paste some JSON questions first.");
+    const questionsArray = [];
+    const rows = document.querySelectorAll('.question-card');
+    
+    rows.forEach(row => {
+        const isChecked = row.querySelector('.q-check').checked;
+        if (isChecked) {
+            questionsArray.push({
+                id: row.getAttribute('data-id'),
+                questionTitle: row.querySelector('.q-title').value.trim(),
+                optionA: row.querySelector('.q-optA').value.trim(),
+                optionB: row.querySelector('.q-optB').value.trim(),
+                optionC: row.querySelector('.q-optC').value.trim(),
+                optionD: row.querySelector('.q-optD').value.trim(),
+                answer: row.querySelector('.q-ans').value.trim().toUpperCase()
+            });
+        }
+    });
+
+    if (questionsArray.length === 0) {
+        alert("Please select at least one question to validate.");
         return;
     }
 
-    if (!rawInput.startsWith('[')) rawInput = '[' + rawInput + ']';
+    const payload = {
+        selectedModel: document.getElementById('selectedModel').value,
+        batchReferenceText: document.getElementById('referenceText').value.trim(),
+        questions: questionsArray
+    };
+
+    btn.disabled = true;
+    loader.classList.remove('d-none');
 
     try {
-        const questionsArray = JSON.parse(rawInput);
-        
-        const payload = {
-            selectedModel: selectedModel,
-            batchReferenceText: referenceText,
-            questions: questionsArray
-        };
-
-        btn.disabled = true;
-        loader.classList.remove('d-none');
-        resultsDiv.innerHTML = '';
-
         const response = await fetch('/api/validation/validate', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload)
         });
 
-        if (!response.ok) {
-            const err = await response.text();
-            throw new Error(err || `Server returned ${response.status}`);
-        }
-
+        if (!response.ok) throw new Error(`Server returned ${response.status}`);
+        
         const data = await response.json();
-        loader.classList.add('d-none');
 
-        if (data.length === 0) {
-            resultsDiv.innerHTML = `<div class="alert alert-warning">Warning: The backend returned an empty response.</div>`;
-            return;
-        }
+        // Map the results back to the exact question cards
+        data.forEach((res, index) => {
+            const targetId = questionsArray[index].id;
+            const targetCard = document.querySelector(`.question-card[data-id="${targetId}"]`);
+            
+            if (targetCard) {
+                const valBox = targetCard.querySelector('.validation-box');
+                const colorClass = res.isFactuallyCorrect ? 'success' : 'danger';
+                const statusLabel = res.isFactuallyCorrect ? 'VALID' : 'NEEDS CORRECTION';
 
-    // --- UPDATED RENDER LOGIC ---
-    data.forEach(res => {
-        const color = res.isFactuallyCorrect ? 'success' : 'danger';
-        const statusText = res.isFactuallyCorrect ? 'VALID' : 'INVALID';
-    
-        // We removed the "if" check so this box always appears now
-        const correctionHtml = `
-        <div class="p-2 bg-white border rounded text-${color} small mt-2">
-            <b>Final Answer:</b> ${res.suggestedCorrection}
-        </div>`;
+                // Paint the card border
+                targetCard.classList.add(`border-${colorClass}`);
+                targetCard.classList.remove('border-0');
 
-        resultsDiv.innerHTML += `
-        <div class="card mb-3 border-start border-5 border-${color} shadow-sm">
-            <div class="card-body">
-                <div class="d-flex justify-content-between align-items-start mb-2">
-                    <h6 class="fw-bold mb-0 me-3 lh-base">${res.questionText}</h6>
-                    <span class="badge bg-${color}">${statusText}</span>
-                </div>
-                <p class="small text-dark mt-2 mb-1"><strong>Reasoning:</strong> ${res.explanation}</p>
-                ${correctionHtml}
-            </div>
-        </div>`;
-    });
+                // Inject the AI response directly below the question inputs
+                valBox.innerHTML = `
+                    <div class="d-flex justify-content-between mb-2">
+                        <span class="fw-bold text-${colorClass}">AI Audit Result: ${statusLabel}</span>
+                    </div>
+                    <p class="small text-dark mb-2"><strong>Reasoning:</strong> ${escapeHTML(res.explanation)}</p>
+                    <div class="p-2 bg-white border rounded small">
+                        <strong>Final Answer:</strong> ${escapeHTML(res.suggestedCorrection)}
+                    </div>
+                `;
+                valBox.classList.remove('d-none');
+                valBox.classList.add(`bg-${colorClass}`, 'bg-opacity-10');
+            }
+        });
+
     } catch (e) {
-        alert("Error: " + e.message);
-        loader.classList.add('d-none');
+        alert("Error processing validation: " + e.message);
     } finally {
         btn.disabled = false;
+        loader.classList.add('d-none');
     }
 });

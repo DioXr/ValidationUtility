@@ -44,10 +44,17 @@ namespace QAUtility.Services
             // 3. DYNAMIC MODEL SWITCHING
             string modelId = request.SelectedModel?.ToLower() switch
             {
+                // The fast, lightweight model
+                "gemini-1.5-flash" => "gemini-1.5-flash",
+
+                // The newer standard model (great default)
                 "gemini-2.5-flash" => "gemini-2.5-flash",
-                "gemini-1.5-pro" => "gemini-1.5-pro",
-                "gemini-2.0-flash" => "gemini-2.0-flash",
-                _ => "gemini-flash-latest" // Default fallback if UI sends nothing
+
+                // The heavy-duty model for complex logical questions
+                "gemini-flash-latest" => "gemini-flash-latest",
+
+                // The safety net: if the UI accidentally sends a blank or weird name, use 2.5 Flash
+                _ => "gemini-flash-latest"
             };
 
             var geminiUrl = $"https://generativelanguage.googleapis.com/v1beta/models/{modelId}:generateContent?key={_apiKey}";

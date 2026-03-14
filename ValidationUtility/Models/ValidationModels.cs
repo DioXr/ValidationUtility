@@ -13,6 +13,7 @@ namespace QAUtility.Models
     // 2. THE INDIVIDUAL QUESTION
     public class ValidationRequest
     {
+        public string Id { get; set; }
         public string QuestionTitle { get; set; }
         public string OptionA { get; set; }
         public string OptionB { get; set; }

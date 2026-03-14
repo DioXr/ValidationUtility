@@ -11,6 +11,11 @@ namespace ValidationUtility.Controllers
             return View();
         }
 
+        public IActionResult AddQuestion()
+        {
+            return View();
+        }
+
         public IActionResult Privacy()
         {
             return View();
