@@ -3,13 +3,19 @@ using QAUtility.Services;
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
-builder.Services.AddControllersWithViews();
+
+builder.Services.AddControllersWithViews()
+    .AddJsonOptions(options =>
+    {
+        options.JsonSerializerOptions.PropertyNamingPolicy = null; // THIS IS MANDATORY
+    });
 // Tells the app to generate the API documentation
 builder.Services.AddEndpointsApiExplorer();
 // This sets up the HttpClient and connects our interface to our implementation
 builder.Services.AddHttpClient<IGeminiValidationService, GeminiValidationService>();
 builder.Services.AddHttpClient();
 builder.Services.AddScoped<QAUtility.Services.IGeminiValidationService, QAUtility.Services.GeminiValidationService>();
+
 
 var app = builder.Build();
 

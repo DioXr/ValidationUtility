@@ -1,303 +1,209 @@
-﻿// --- 0. HELPER FUNCTION: Prevent HTML Injection ---
-function escapeHTML(str) {
-    if (!str) return "";
-    return str.toString().replace(/[&<>'"]/g, 
-        tag => ({
-            '&': '&amp;',
-            '<': '&lt;',
-            '>': '&gt;',
-            "'": '&#39;',
-            '"': '&quot;'
-        }[tag] || tag)
-    );
+﻿pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
+
+// --- MATH RENDERING ENGINE ---
+function triggerMathRender() {
+    if (window.MathJax && window.MathJax.typesetPromise) {
+        window.MathJax.typesetPromise().then(() => {
+            console.log("MathJax rendering complete.");
+        }).catch((err) => console.log('MathJax error:', err));
+    }
 }
 
-// --- 1. PDF TEXT EXTRACTION LOGIC ---
-document.getElementById('fileInput').addEventListener('change', async function(e) {
-    const file = e.target.files[0];
-    if (!file) return;
-
-    const textArea = document.getElementById('referenceText');
-    textArea.value = "Extracting text, please wait...";
-
+// --- INITIAL LOAD ---
+document.addEventListener('DOMContentLoaded', async () => {
     try {
-        const arrayBuffer = await file.arrayBuffer();
-        const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-        let fullText = "";
-
-        for (let i = 1; i <= pdf.numPages; i++) {
-            const page = await pdf.getPage(i);
-            const content = await page.getTextContent();
-            const strings = content.items.map(item => item.str);
-            fullText += strings.join(" ") + " ";
-        }
-
-        textArea.value = fullText;
-    } catch (error) {
-        textArea.value = "Error extracting PDF: " + error.message;
-    }
-});
-
-// --- 2. LOAD MANUAL JSON LOGIC ---
-document.getElementById('btnLoadJson').addEventListener('click', function() {
-    const jsonText = document.getElementById('manualJsonInput').value;
-    const container = document.getElementById('questionsContainer');
-
-    try {
-        const questions = JSON.parse(jsonText);
-        
-        if (container.innerHTML.includes('No questions loaded')) {
-            container.innerHTML = '';
-        }
-
-        questions.forEach((q, index) => {
-            const randomId = "Manual_" + Math.floor(Math.random() * 10000); 
-            
-            const cardHtml = `
-                <div class="card mb-4 shadow-sm question-card border-0" data-id="${randomId}">
-                    <div class="card-header bg-white border-bottom-0 pt-3 pb-0 d-flex justify-content-between align-items-center">
-                        <div class="form-check">
-                            <input class="form-check-input q-check row-checkbox" type="checkbox" checked>
-                            <label class="form-check-label fw-bold text-primary">Include in Validation</label>
-                        </div>
-                        <span class="badge bg-secondary">ID: ${randomId}</span>
-                    </div>
-
-                    <div class="card-body">
-                        <label class="form-label small fw-bold text-muted mb-1">Question Text</label>
-                        <textarea class="form-control mb-3 q-title bg-light" rows="2">${escapeHTML(q.questionTitle || '')}</textarea>
-                        
-                        <div class="row g-2 mb-3">
-                            <div class="col-md-6">
-                                <div class="input-group input-group-sm">
-                                    <span class="input-group-text fw-bold">A</span>
-                                    <input type="text" class="form-control q-optA" value="${escapeHTML(q.optionA || '')}">
-                                </div>
-                            </div>
-                            <div class="col-md-6">
-                                <div class="input-group input-group-sm">
-                                    <span class="input-group-text fw-bold">B</span>
-                                    <input type="text" class="form-control q-optB" value="${escapeHTML(q.optionB || '')}">
-                                </div>
-                            </div>
-                            <div class="col-md-6">
-                                <div class="input-group input-group-sm">
-                                    <span class="input-group-text fw-bold">C</span>
-                                    <input type="text" class="form-control q-optC" value="${escapeHTML(q.optionC || '')}">
-                                </div>
-                            </div>
-                            <div class="col-md-6">
-                                <div class="input-group input-group-sm">
-                                    <span class="input-group-text fw-bold">D</span>
-                                    <input type="text" class="form-control q-optD" value="${escapeHTML(q.optionD || '')}">
-                                </div>
-                            </div>
-                        </div>
-
-                        <div class="d-flex align-items-center">
-                            <label class="form-label small fw-bold text-muted mb-0 me-2">Teacher Answer Key:</label>
-                            <input type="text" class="form-control form-control-sm text-center fw-bold q-ans w-25" value="${escapeHTML(q.answer || '')}" maxlength="1">
-                        </div>
-                    </div>
-                    
-                    <div class="card-footer d-none validation-box p-3"></div>
-                </div>`;
-            
-            container.innerHTML += cardHtml;
-        });
-
-        document.getElementById('manualJsonInput').value = '';
-
-    } catch (e) {
-        alert("Invalid JSON format. Please check your syntax. Error: " + e.message);
-    }
-});
-
-// --- 3. FETCH EXTERNAL QUESTIONS LOGIC ---
-document.getElementById('btnFetch').addEventListener('click', async function() {
-    const container = document.getElementById('questionsContainer');
-    const btn = this;
-    const btnRun = document.getElementById('btnRun');
-    const selectAll = document.getElementById('selectAll');
-    
-    btn.innerHTML = 'Loading...';
-    btn.disabled = true;
-
-    try {
-        const response = await fetch('/api/validation/fetch-external');
-        if (!response.ok) throw new Error("Failed to fetch questions");
-        
+        const response = await fetch('/external_quiz_data.json?v=' + new Date().getTime()); 
         const questions = await response.json();
-        
-        if (container.innerHTML.includes('No questions loaded')) {
-            container.innerHTML = '';
-        }
-
-        questions.forEach((q, index) => {
-            const cardHtml = `
-                <div class="card mb-4 shadow-sm question-card border-0" data-id="${escapeHTML(q.id)}">
-                    
-                    <div class="card-header bg-white border-bottom-0 pt-3 pb-0 d-flex justify-content-between align-items-center">
-                        <div class="form-check">
-                            <input class="form-check-input q-check row-checkbox" type="checkbox" checked>
-                            <label class="form-check-label fw-bold text-primary">Include in Validation</label>
-                        </div>
-                        <span class="badge bg-secondary">ID: ${escapeHTML(q.id)}</span>
-                    </div>
-
-                    <div class="card-body">
-                        <label class="form-label small fw-bold text-muted mb-1">Question Text</label>
-                        <textarea class="form-control mb-3 q-title bg-light" rows="2">${escapeHTML(q.questionTitle)}</textarea>
-                        
-                        <div class="row g-2 mb-3">
-                            <div class="col-md-6">
-                                <div class="input-group input-group-sm">
-                                    <span class="input-group-text fw-bold">A</span>
-                                    <input type="text" class="form-control q-optA" value="${escapeHTML(q.optionA)}">
-                                </div>
-                            </div>
-                            <div class="col-md-6">
-                                <div class="input-group input-group-sm">
-                                    <span class="input-group-text fw-bold">B</span>
-                                    <input type="text" class="form-control q-optB" value="${escapeHTML(q.optionB)}">
-                                </div>
-                            </div>
-                            <div class="col-md-6">
-                                <div class="input-group input-group-sm">
-                                    <span class="input-group-text fw-bold">C</span>
-                                    <input type="text" class="form-control q-optC" value="${escapeHTML(q.optionC)}">
-                                </div>
-                            </div>
-                            <div class="col-md-6">
-                                <div class="input-group input-group-sm">
-                                    <span class="input-group-text fw-bold">D</span>
-                                    <input type="text" class="form-control q-optD" value="${escapeHTML(q.optionD)}">
-                                </div>
-                            </div>
-                        </div>
-
-                        <div class="d-flex align-items-center">
-                            <label class="form-label small fw-bold text-muted mb-0 me-2">Teacher Answer Key:</label>
-                            <input type="text" class="form-control form-control-sm text-center fw-bold q-ans w-25" value="${escapeHTML(q.answer)}" maxlength="1">
-                        </div>
-                    </div>
-                    
-                    <div class="card-footer d-none validation-box p-3"></div>
-                </div>`;
-            
-            container.innerHTML += cardHtml;
-        });
-
-        btnRun.disabled = false;
-        selectAll.disabled = false;
-        selectAll.checked = true;
-
-    } catch (err) {
-        alert("Error: " + err.message);
-    } finally {
-        btn.innerHTML = 'Fetch External App';
-        btn.disabled = false;
+        renderTableRows(questions);
+    } catch (e) { 
+        console.error("Database connection failed."); 
     }
 });
 
-// --- 4. SELECT ALL CHECKBOX LOGIC ---
-document.getElementById('selectAll').addEventListener('change', function() {
-    const isChecked = this.checked;
-    document.querySelectorAll('.row-checkbox').forEach(cb => cb.checked = isChecked);
-});
-
-// --- 5. VALIDATION LOGIC ---
-document.getElementById('btnRun').addEventListener('click', async function() {
-    const btn = this;
-    const loader = document.getElementById('loader');
-    
-    // Clear old validation results
-    document.querySelectorAll('.validation-box').forEach(box => {
-        box.classList.add('d-none');
-        box.innerHTML = '';
-        // 1. Remove the old border colors from the main card
-        box.closest('.card').classList.remove('border-success', 'border-danger');
-        
-        // 2. NEW FIX: Remove the old background colors from the footer box!
-        box.classList.remove('bg-success', 'bg-danger', 'bg-opacity-10');
+// --- RENDER TABLE ---
+function renderTableRows(questions) {
+    const tableBody = document.getElementById('quizTableBody');
+    tableBody.innerHTML = '';
+    questions.forEach((q, index) => {
+        const rowId = q.id || q.Id || `Q-${index}`;
+        const row = document.createElement('tr');
+        row.className = 'question-row tex2jax_process'; 
+        row.setAttribute('data-id', rowId);
+        row.innerHTML = `
+            <td class="text-center bg-light"><input type="checkbox" class="form-check-input q-check shadow-sm" checked></td>
+            <td class="q-title p-3 text-dark fw-medium text-wrap">${q.questionTitle || q.QuestionTitle}</td>
+            <td class="p-3 text-muted" style="line-height: 1.8;">
+                <strong>A:</strong> <span class="q-optA">${q.optionA || q.OptionA || ''}</span><br>
+                <strong>B:</strong> <span class="q-optB">${q.optionB || q.OptionB || ''}</span><br>
+                <strong>C:</strong> <span class="q-optC">${q.optionC || q.OptionC || ''}</span><br>
+                <strong>D:</strong> <span class="q-optD">${q.optionD || q.OptionD || ''}</span><br>
+                <strong>E:</strong> <span class="q-optE">${q.optionE || q.OptionE || '-'}</span>
+            </td>
+            <td class="text-center q-ans fw-bold fs-5 p-3 text-primary">${q.answer || q.Answer}</td>
+            <td class="ai-result text-muted small italic bg-light p-3">Awaiting audit...</td>
+            <td class="ai-action text-center bg-light p-3"></td>
+        `;
+        tableBody.appendChild(row);
     });
 
-    const questionsArray = [];
-    const rows = document.querySelectorAll('.question-card');
+    const auditBtn = document.getElementById('btnRunAudit');
+    if (auditBtn) auditBtn.disabled = false;
     
-    rows.forEach(row => {
-        const isChecked = row.querySelector('.q-check').checked;
-        if (isChecked) {
-            questionsArray.push({
-                id: row.getAttribute('data-id'),
-                questionTitle: row.querySelector('.q-title').value.trim(),
-                optionA: row.querySelector('.q-optA').value.trim(),
-                optionB: row.querySelector('.q-optB').value.trim(),
-                optionC: row.querySelector('.q-optC').value.trim(),
-                optionD: row.querySelector('.q-optD').value.trim(),
-                answer: row.querySelector('.q-ans').value.trim().toUpperCase()
-            });
-        }
-    });
+    setTimeout(triggerMathRender, 200);
+}
 
-    if (questionsArray.length === 0) {
-        alert("Please select at least one question to validate.");
-        return;
-    }
-
-    const payload = {
-        selectedModel: document.getElementById('selectedModel').value,
-        batchReferenceText: document.getElementById('referenceText').value.trim(),
-        questions: questionsArray
-    };
-
-    btn.disabled = true;
-    loader.classList.remove('d-none');
-
-    try {
-        const response = await fetch('/api/validation/validate', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
-        });
-
-        if (!response.ok) throw new Error(`Server returned ${response.status}`);
+// --- AUDIT TRIGGER ---
+const btnRunAudit = document.getElementById('btnRunAudit');
+if (btnRunAudit) {
+    btnRunAudit.addEventListener('click', async function() {
+        const loader = document.getElementById('loader');
+        const questionsToAudit = [];
         
-        const data = await response.json();
-
-        // Map the results back to the exact question cards
-        data.forEach((res, index) => {
-            const targetId = questionsArray[index].id;
-            const targetCard = document.querySelector(`.question-card[data-id="${targetId}"]`);
-            
-            if (targetCard) {
-                const valBox = targetCard.querySelector('.validation-box');
-                const colorClass = res.isFactuallyCorrect ? 'success' : 'danger';
-                const statusLabel = res.isFactuallyCorrect ? 'VALID' : 'NEEDS CORRECTION';
-
-                // Paint the card border
-                targetCard.classList.add(`border-${colorClass}`);
-                targetCard.classList.remove('border-0');
-
-                // Inject the AI response directly below the question inputs
-                valBox.innerHTML = `
-                    <div class="d-flex justify-content-between mb-2">
-                        <span class="fw-bold text-${colorClass}">AI Audit Result: ${statusLabel}</span>
-                    </div>
-                    <p class="small text-dark mb-2"><strong>Reasoning:</strong> ${escapeHTML(res.explanation)}</p>
-                    <div class="p-2 bg-white border rounded small">
-                        <strong>Final Answer:</strong> ${escapeHTML(res.suggestedCorrection)}
-                    </div>
-                `;
-                valBox.classList.remove('d-none');
-                valBox.classList.add(`bg-${colorClass}`, 'bg-opacity-10');
+        document.querySelectorAll('.question-row').forEach(row => {
+            if (row.querySelector('.q-check')?.checked) {
+                questionsToAudit.push({
+                    Id: row.getAttribute('data-id'),
+                    QuestionTitle: row.querySelector('.q-title').innerText,
+                    OptionA: row.querySelector('.q-optA').innerText,
+                    OptionB: row.querySelector('.q-optB').innerText,
+                    OptionC: row.querySelector('.q-optC').innerText,
+                    OptionD: row.querySelector('.q-optD').innerText,
+                    OptionE: row.querySelector('.q-optE').innerText || "-",
+                    Answer: row.querySelector('.q-ans').innerText
+                });
             }
         });
 
-    } catch (e) {
-        alert("Error processing validation: " + e.message);
-    } finally {
-        btn.disabled = false;
-        loader.classList.add('d-none');
-    }
-});
+        if (questionsToAudit.length === 0) return alert("Select questions first.");
+
+        loader.classList.remove('d-none');
+        try {
+            const response = await fetch('/api/validation/validate', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    SelectedModel: document.getElementById('selectedModel').value,
+                    BatchReferenceText: document.getElementById('referenceText').value,
+                    Questions: questionsToAudit
+                })
+            });
+
+            if (!response.ok) throw new Error("Server error");
+
+            const data = await response.json();
+            data.forEach(res => {
+                const row = document.querySelector(`.question-row[data-id="${res.QuestionId}"]`);
+                if (row) {
+                    const isCorrect = res.IsFactuallyCorrect;
+                    row.classList.remove('table-success', 'table-danger');
+                    row.classList.add(isCorrect ? 'table-success' : 'table-danger');
+                    
+                    // --- REARRANGED FEEDBACK LAYOUT ---
+                    let feedbackHtml = `<div class="fw-bold mb-1 ${isCorrect ? 'text-success' : 'text-danger'}">
+                                            ${isCorrect ? '✅ VALID' : '❌ INCORRECT'}
+                                        </div>`;
+                    
+                    if (!isCorrect) {
+                        // Show correct option/fix FIRST
+                        feedbackHtml += `<div class="p-2 mb-2 bg-white rounded border border-danger-subtle shadow-sm small">
+                                            <strong class="text-danger">Suggested Fix:</strong> ${res.SuggestedCorrection}
+                                         </div>`;
+                    }
+
+                    // Then show the detailed explanation
+                    feedbackHtml += `<div class="text-dark small" style="line-height:1.4">${res.Explanation}</div>`;
+
+                    row.querySelector('.ai-result').innerHTML = feedbackHtml;
+
+                    if (!isCorrect) {
+                        row.querySelector('.ai-action').innerHTML = `
+                            <button class="btn btn-warning btn-sm fw-bold shadow-sm" onclick="openEditModal('${res.QuestionId}')">Fix</button>
+                        `;
+                    } else {
+                        row.querySelector('.ai-action').innerHTML = '';
+                    }
+                }
+            });
+            
+            setTimeout(triggerMathRender, 200);
+
+            const dlBtn = document.getElementById('btnDownloadJson');
+            if (dlBtn) dlBtn.disabled = false;
+
+        } catch (e) { 
+            alert("Audit Failed. Check your API connection."); 
+        } finally { 
+            loader.classList.add('d-none'); 
+        }
+    });
+}
+
+// --- DOWNLOAD FEATURE ---
+const btnDownload = document.getElementById('btnDownloadJson');
+if (btnDownload) {
+    btnDownload.addEventListener('click', function() {
+        const finalData = [];
+        document.querySelectorAll('.question-row').forEach(row => {
+            finalData.push({
+                id: row.getAttribute('data-id'),
+                questionTitle: row.querySelector('.q-title').innerText,
+                optionA: row.querySelector('.q-optA').innerText,
+                optionB: row.querySelector('.q-optB').innerText,
+                optionC: row.querySelector('.q-optC').innerText,
+                optionD: row.querySelector('.q-optD').innerText,
+                optionE: row.querySelector('.q-optE').innerText,
+                answer: row.querySelector('.q-ans').innerText,
+                auditFeedback: row.querySelector('.ai-result').innerText
+            });
+        });
+
+        const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(finalData, null, 2));
+        const downloadAnchor = document.createElement('a');
+        downloadAnchor.setAttribute("href", dataStr);
+        downloadAnchor.setAttribute("download", "validated_quiz_data.json");
+        document.body.appendChild(downloadAnchor);
+        downloadAnchor.click();
+        downloadAnchor.remove();
+    });
+}
+
+// --- MODAL & UI HELPERS ---
+window.openEditModal = function(id) {
+    const row = document.querySelector(`.question-row[data-id="${id}"]`);
+    document.getElementById('editRowId').value = id;
+    document.getElementById('editTitle').value = row.querySelector('.q-title').innerText;
+    document.getElementById('editOptA').value = row.querySelector('.q-optA').innerText;
+    document.getElementById('editOptB').value = row.querySelector('.q-optB').innerText;
+    document.getElementById('editOptC').value = row.querySelector('.q-optC').innerText;
+    document.getElementById('editOptD').value = row.querySelector('.q-optD').innerText;
+    document.getElementById('editOptE').value = row.querySelector('.q-optE').innerText;
+    document.getElementById('editAns').value = row.querySelector('.q-ans').innerText;
+    new bootstrap.Modal(document.getElementById('editModal')).show();
+};
+
+window.saveEdit = function() {
+    const id = document.getElementById('editRowId').value;
+    const row = document.querySelector(`.question-row[data-id="${id}"]`);
+    row.querySelector('.q-title').innerText = document.getElementById('editTitle').value;
+    row.querySelector('.q-optA').innerText = document.getElementById('editOptA').value;
+    row.querySelector('.q-optB').innerText = document.getElementById('editOptB').value;
+    row.querySelector('.q-optC').innerText = document.getElementById('editOptC').value;
+    row.querySelector('.q-optD').innerText = document.getElementById('editOptD').value;
+    row.querySelector('.q-optE').innerText = document.getElementById('editOptE').value;
+    row.querySelector('.q-ans').innerText = document.getElementById('editAns').value.toUpperCase();
+
+    row.classList.remove('table-danger');
+    row.querySelector('.ai-result').innerHTML = '<span class="badge bg-secondary">Manual Fix Applied.</span>';
+    row.querySelector('.ai-action').innerHTML = '';
+    
+    bootstrap.Modal.getInstance(document.getElementById('editModal')).hide();
+    setTimeout(triggerMathRender, 200); 
+};
+
+// Select All Toggle
+const selectAllCheck = document.getElementById('selectAll');
+if (selectAllCheck) {
+    selectAllCheck.addEventListener('change', function() {
+        document.querySelectorAll('.q-check').forEach(cb => cb.checked = this.checked);
+    });
+} 

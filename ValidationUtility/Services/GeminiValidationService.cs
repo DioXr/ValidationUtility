@@ -41,11 +41,11 @@ namespace QAUtility.Services
             // 2. Limit to 10 questions to protect token limits
             var batch = request.Questions.Take(10).ToList();
 
-            // 3. DYNAMIC MODEL SWITCHING
+            // 3. YOUR DYNAMIC MODEL SWITCHING
             string modelId = request.SelectedModel?.ToLower() switch
             {
                 // The fast, lightweight model
-                "gemini-1.5-flash" => "gemini-1.5-flash",
+                "gemini-2.0-flash" => "gemini-2.0-flash",
 
                 // The newer standard model (great default)
                 "gemini-2.5-flash" => "gemini-2.5-flash",
@@ -53,20 +53,21 @@ namespace QAUtility.Services
                 // The heavy-duty model for complex logical questions
                 "gemini-flash-latest" => "gemini-flash-latest",
 
-                // The safety net: if the UI accidentally sends a blank or weird name, use 2.5 Flash
+                // The safety net
                 _ => "gemini-flash-latest"
             };
 
             var geminiUrl = $"https://generativelanguage.googleapis.com/v1beta/models/{modelId}:generateContent?key={_apiKey}";
 
-            // 4. Serialize just the questions for the AI
-            var questionsPayload = batch.Select((req, index) => new {
-                Id = index,
+            // 4. Serialize questions for the AI (With Option E)
+            var questionsPayload = batch.Select(req => new {
+                Id = req.Id,
                 Question = CleanText(req.QuestionTitle),
                 A = CleanText(req.OptionA),
                 B = CleanText(req.OptionB),
                 C = CleanText(req.OptionC),
                 D = CleanText(req.OptionD),
+                E = CleanText(req.OptionE),
                 TeacherKey = req.Answer?.ToUpper()
             });
             string serializedQuestions = JsonSerializer.Serialize(questionsPayload);
@@ -132,9 +133,13 @@ namespace QAUtility.Services
                         var node = JsonNode.Parse(responseString);
                         var aiRawText = node["candidates"]?[0]?["content"]?["parts"]?[0]?["text"]?.ToString() ?? "";
 
-                        // 8. CLEAN AI RESPONSE (Prevents 0x0A crashes)
+                        // 8. CLEAN AI RESPONSE
                         aiRawText = Regex.Replace(aiRawText, "```json|```", "").Trim();
                         aiRawText = aiRawText.Replace("\r", "").Replace("\n", " ");
+
+                        int start = aiRawText.IndexOf('[');
+                        int end = aiRawText.LastIndexOf(']');
+                        if (start != -1 && end != -1) aiRawText = aiRawText.Substring(start, (end - start) + 1);
 
                         var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
                         var resultsArray = JsonSerializer.Deserialize<List<ValidationResult>>(aiRawText, options);
@@ -144,7 +149,9 @@ namespace QAUtility.Services
                         {
                             for (int i = 0; i < Math.Min(batch.Count, resultsArray.Count); i++)
                             {
-                                resultsArray[i].QuestionText = CleanText(batch[i].QuestionTitle);
+                                // The magic line that fixes the loading spinner!
+                                resultsArray[i].QuestionId = batch[i].Id;
+                               
                                 finalResults.Add(resultsArray[i]);
                             }
                         }
@@ -161,7 +168,7 @@ namespace QAUtility.Services
                         else if (statusCode == 400 || statusCode == 403 || statusCode == 404)
                         {
                             attempt = maxRetries; // Fail fast
-                            throw new Exception($"Fatal API Error: {statusCode}");
+                            throw new Exception($"Fatal API Error: {statusCode}. Model {modelId} might be invalid.");
                         }
                         else
                         {
@@ -178,10 +185,11 @@ namespace QAUtility.Services
                         {
                             finalResults.Add(new ValidationResult
                             {
-                                QuestionText = CleanText(req.QuestionTitle),
+                                QuestionId = req.Id,
+                                
                                 IsFactuallyCorrect = false,
                                 Explanation = $"System Failure: {ex.Message}",
-                                SuggestedCorrection = $"Validation failed using model: {modelId}."
+                                SuggestedCorrection = $"Validation failed."
                             });
                         }
                     }

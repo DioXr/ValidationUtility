@@ -1,60 +1,105 @@
 ﻿@{
-    ViewData["Title"] = "Validation UI";
+    ViewData["Title"] = "Quiz Management System";
 }
+<script>
+    window.MathJax = {
+        tex: {
+            inlineMath: [['\\(', '\\)'], ['$', '$']],
+            displayMath: [['\\[', '\\]'], ['$$', '$$']],
+            processEscapes: true
+        },
+        options: {
+            // This ensures MathJax looks inside our table
+            processHtmlClass: 'tex2jax_process'
+        }
+    };
+</script>
+<script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
 
-<div class="container-fluid mt-4 px-4">
-    <h3 class="mb-4 text-primary">Content Audit Dashboard</h3>
+<div id="loader" class="d-none position-fixed top-0 start-0 w-100 h-100 bg-white bg-opacity-75 d-flex flex-column justify-content-center align-items-center" style="z-index: 9999;">
+    <div class="spinner-border text-primary" style="width: 3rem; height: 3rem;"></div>
+    <span class="mt-3 fw-bold text-primary">AI Utility: Auditing Quiz Data...</span>
+</div>
 
-    <div class="row">
-        <div class="col-lg-3 col-md-4 mb-4">
-            <div class="card shadow-sm border-0 bg-light p-3 mb-3 position-sticky" style="top: 20px;">
-                <h6 class="fw-bold mb-3 border-bottom pb-2">Validation Settings</h6>
+<div class="container-fluid mt-4 px-4 pb-5">
 
-                <div class="mb-3">
-                    <label class="form-label text-muted small fw-bold mb-1">AI Model</label>
-                    <select id="selectedModel" class="form-select form-select-sm">
-                        <option value="gemini-2.0-flash">Gemini 1.5 Flash (Fast & Stable)</option>
-                        <option value="gemini-2.5-flash" selected>Gemini 2.5 Flash (Newest Standard)</option>
-                        <option value="gemini-2.5-pro">Gemini Flash Latest (Auto)</option>
-                    </select>
-                </div>
+    <div class="d-flex justify-content-between align-items-center mb-4 border-bottom pb-3">
+        <div>
+            <h3 class="fw-bold text-dark mb-0">Quiz Portal</h3>
+            <p class="text-muted small mb-0">Internal Dashboard for Question Validation</p>
+        </div>
+        <div class="d-flex gap-2">
+            <button id="btnDownloadJson" class="btn btn-success fw-bold px-3 shadow-sm" disabled>📥 Download</button>
+            <button id="btnRunAudit" class="btn btn-primary fw-bold px-5 shadow-sm" disabled> Validate </button>
+        </div>
+    </div>
 
-                <div class="mb-3">
-                    <label class="form-label text-muted small fw-bold mb-1">Reference PDF</label>
-                    <input type="file" id="fileInput" class="form-control form-control-sm mb-2" accept=".pdf">
-                    <textarea id="referenceText" class="form-control form-control-sm" rows="3" placeholder="PDF text will appear here..."></textarea>
-                </div>
-
-                <div class="mb-3">
-                    <label class="form-label text-muted small fw-bold mb-1">Manual JSON</label>
-                    <textarea id="manualJsonInput" class="form-control form-control-sm mb-2" rows="3" placeholder='[{"questionTitle": "...", "answer": "A"}]'></textarea>
-                    <button id="btnLoadJson" class="btn btn-secondary btn-sm w-100 fw-bold">Load JSON to Screen</button>
-                </div>
-
-                <hr>
-
-                <button id="btnFetch" class="btn btn-outline-primary w-100 mb-2 fw-bold">Fetch External App</button>
-                <button id="btnRun" class="btn btn-primary w-100 fw-bold shadow-sm">Validate Selected</button>
-
-                <div id="loader" class="d-none text-primary mt-3 small text-center fw-bold">
-                    <span class="spinner-border spinner-border-sm me-2"></span> Analyzing...
+    <div class="card shadow-sm border-0 mb-4 bg-light p-3">
+        <div class="row g-3 align-items-end">
+            <div class="col-md-3">
+                <label class="small fw-bold text-muted mb-1">AI Audit Model</label>
+                <select id="selectedModel" class="form-select form-select-sm border-0 shadow-sm">
+                    <option value="gemini-1.5-flash">Gemini 1.5 Flash</option>
+                    <option value="gemini-2.5-flash">Gemini 2.5 Flash</option>
+                    <option value="gemini-flash-latest" selected>Gemini Flash Latest</option>
+                </select>
+            </div>
+            <div class="col-md-9 border-start">
+                <label class="small fw-bold text-muted mb-1">Grounding Source (PDF Reference)</label>
+                <div class="d-flex gap-2">
+                    <input type="file" id="fileInput" class="form-control form-control-sm w-25" accept=".pdf">
+                    <textarea id="referenceText" class="form-control form-control-sm border-0 bg-transparent" rows="1" placeholder="Upload a PDF to ground the AI in facts..."></textarea>
                 </div>
             </div>
         </div>
+    </div>
 
-        <div class="col-lg-9 col-md-8">
-            <div class="d-flex justify-content-between align-items-center mb-3">
-                <h5 class="fw-bold mb-0">Question Bank</h5>
-                <div class="form-check">
-                    <input class="form-check-input" type="checkbox" id="selectAll" disabled>
-                    <label class="form-check-label text-muted small" for="selectAll">Select All</label>
+    <div class="table-responsive bg-white shadow-sm border rounded tex2jax_process">
+        <table class="table table-bordered table-hover align-middle mb-0" style="font-size: 0.95rem;">
+            <thead class="table-light text-secondary fw-bold text-uppercase" style="font-size: 0.8rem;">
+                <tr>
+                    <th class="text-center" style="width: 50px;"><input type="checkbox" id="selectAll" class="form-check-input" checked></th>
+                    <th style="width: 35%;">Question Title</th>
+                    <th style="width: 25%;">Answer Options</th>
+                    <th class="text-center" style="width: 8%;">Teacher Key</th>
+                    <th style="width: 25%;">Validation Feedback</th>
+                    <th class="text-center" style="width: 7%;">Action</th>
+                </tr>
+            </thead>
+            <tbody id="quizTableBody">
+                <tr><td colspan="6" class="text-center py-5 text-muted">Synchronizing with quiz database...</td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<div class="modal fade" id="editModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content border-0 shadow-lg">
+            <div class="modal-header bg-warning text-dark border-0">
+                <h5 class="modal-title fw-bold"> Fix Question Details</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-4 bg-light">
+                <input type="hidden" id="editRowId">
+                <div class="mb-3">
+                    <label class="small fw-bold text-muted mb-1">Question Title</label>
+                    <textarea id="editTitle" class="form-control border-0 shadow-sm" rows="2"></textarea>
+                </div>
+                <div class="row g-3 mb-3">
+                    <div class="col-md-6"><label class="small fw-bold text-muted">Option A</label><input type="text" id="editOptA" class="form-control border-0 shadow-sm"></div>
+                    <div class="col-md-6"><label class="small fw-bold text-muted">Option B</label><input type="text" id="editOptB" class="form-control border-0 shadow-sm"></div>
+                    <div class="col-md-6"><label class="small fw-bold text-muted">Option C</label><input type="text" id="editOptC" class="form-control border-0 shadow-sm"></div>
+                    <div class="col-md-6"><label class="small fw-bold text-muted">Option D</label><input type="text" id="editOptD" class="form-control border-0 shadow-sm"></div>
+                    <div class="col-md-6"><label class="small fw-bold text-muted">Option E</label><input type="text" id="editOptE" class="form-control border-0 shadow-sm"></div>
+                    <div class="col-md-6">
+                        <label class="small fw-bold text-muted">Teacher Answer Key</label>
+                        <input type="text" id="editAns" class="form-control border-0 shadow-sm fw-bold text-primary w-50" maxlength="1">
+                    </div>
                 </div>
             </div>
-
-            <div id="questionsContainer" style="padding-bottom: 100px;">
-                <div class="text-center text-muted p-5 border rounded bg-light">
-                    No questions loaded. Click "Fetch External Questions" to begin.
-                </div>
+            <div class="modal-footer border-0">
+                <button onclick="saveEdit()" class="btn btn-success fw-bold px-4">Update Question</button>
             </div>
         </div>
     </div>

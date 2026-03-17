@@ -1,0 +1,81 @@
+[
+  {
+    "questionTitle": "પાણીનું રાસાયણિક સૂત્ર શું છે?",
+    "optionA": "CO2",
+    "optionB": "H2O",
+    "optionC": "O2",
+    "optionD": "NaCl",
+    "optionE": "",
+    "answer": "A"
+  },
+  {
+    "questionTitle": "'आकाश' का पर्यायवाची शब्द कौन सा है?",
+    "optionA": "पाताल",
+    "optionB": "गगन",
+    "optionC": "धरती",
+    "optionD": "सागर",
+    "optionE": "",
+    "answer": "B"
+  },
+  {
+    "questionTitle": "<p><span class=\"math-tex\">\\\\( 5^2 + 12^2 = ? \\\\)</span></p>",
+    "optionA": "169",
+    "optionB": "144",
+    "optionC": "25",
+    "optionD": "13",
+    "optionE": "",
+    "answer": "D"
+  },
+  {
+    "questionTitle": "ગુજરાતની સ્થાપના ક્યારે થઈ હતી?",
+    "optionA": "1 મે 1960",
+    "optionB": "15 ઓગસ્ટ 1947",
+    "optionC": "26 જાન્યુઆરી 1950",
+    "optionD": "1 મે 1970",
+    "optionE": "",
+    "answer": "A"
+  },
+  {
+    "questionTitle": "If a right-angled triangle has a base of 3 and a height of 4, what is its area?",
+    "optionA": "12",
+    "optionB": "8",
+    "optionC": "10",
+    "optionD": "7",
+    "optionE": "",
+    "answer": "A"
+  },
+    {
+      "questionTitle": "Which middleware is specifically used in Express.js to parse JSON data for modern frontend frameworks like Angular?",
+      "optionA": "express.urlencoded()",
+      "optionB": "express.json()",
+      "optionC": "multer",
+      "optionD": "body-parser.url()",
+      "answer": "B"
+    },
+    {
+      "questionTitle": "In a RESTful API, which property of the request object is used to access data sent in the URL query string (e.g., /products?id=123)?",
+      "optionA": "req.body",
+      "optionB": "req.params",
+      "optionC": "req.query",
+      "optionD": "req.data",
+      "answer": "C"
+    },
+    {
+      "questionTitle": "According to section 3.3.3, which header must the client use to send the Firebase JWT to the backend?",
+      "optionA": "x-access-token",
+      "optionB": "Authorization",
+      "optionC": "Firebase-Token",
+      "optionD": "JWT-Auth",
+      "answer": "A"
+    },
+    {
+      "questionTitle": "Which Mongoose schema option automatically manages 'createdAt' and 'updatedAt' fields?",
+      "optionA": "{ history: true }",
+      "optionB": "{ logs: true }",
+      "optionC": "{ timestamps: true }",
+      "optionD": "{ autoDate: true }",
+      "answer": "C"
+    }
+
+  ]
+
