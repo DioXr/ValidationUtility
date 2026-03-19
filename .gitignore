@@ -361,7 +361,7 @@ MigrationBackup/
 
 
 //
-
+ValidationUtility/appsettings.json
 appsettings.json
 
 # Fody - auto-generated XML schema
